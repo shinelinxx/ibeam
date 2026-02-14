@@ -5,7 +5,7 @@ services:
     volumes:
       - ./config/service-${TRADER_INDEX:-0}.yaml:/srv/ibeam/config.yaml:ro
     ports:
-      - 127.0.0.1:5000:5000 # IB Gateway Web API 端口
-      - 127.0.0.1:5001:5001 # IBeam 健康检查端口
+      - 5002:5000 # IB Gateway Web API 端口 (宿主机5002->容器5000)
+      - 5001:5001 # IBeam 健康检查端口
     network_mode: bridge    # clientportal.gw 要求
     restart: 'no'           # 防止超过 IBEAM_MAX_FAILED_AUTH 次数

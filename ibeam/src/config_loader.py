@@ -144,15 +144,15 @@ def load_yaml_config(config_path: Optional[str] = None) -> int:
 
     if config_path is None:
         # Try default locations:
-        #   1. config.yaml in WORKDIR (docker volume mount)
+        #   1. config.yaml in CWD (docker volume mount to WORKDIR)
         #   2. /srv/config/service-{TRADER_INDEX}.yaml (legacy)
-        #   3. local dev: config/service-{TRADER_INDEX}.yaml
+        #   3. local dev: config/service-{TRADER_INDEX}.yaml relative to project root
         trader_index = os.environ.get('TRADER_INDEX', '0')
-        ibeam_root = os.path.join(os.path.dirname(__file__), '..', '..')
+        project_root = os.path.join(os.path.dirname(__file__), '..', '..')
         candidates = [
-            os.path.join(ibeam_root, 'config.yaml'),
+            os.path.join(os.getcwd(), 'config.yaml'),
             f'/srv/config/service-{trader_index}.yaml',
-            os.path.join(ibeam_root, f'config/service-{trader_index}.yaml'),
+            os.path.join(project_root, f'config/service-{trader_index}.yaml'),
         ]
         for candidate in candidates:
             if os.path.isfile(candidate):

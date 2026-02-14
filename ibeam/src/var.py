@@ -80,7 +80,7 @@ START_ACTIVE = to_bool(os.environ.get('IBEAM_START_ACTIVE', True))
 
 ########### GATEWAY ROUTES ###########
 
-GATEWAY_BASE_URL = os.environ.get('IBEAM_GATEWAY_BASE_URL', "https://localhost:5000")
+GATEWAY_BASE_URL = os.environ.get('IBEAM_GATEWAY_BASE_URL', "http://localhost:5000")
 """Base URL of the gateway."""
 
 ROUTE_AUTH = os.environ.get('IBEAM_ROUTE_AUTH', '/sso/Login?forwardTo=22&RL=1&ip2loc=on')

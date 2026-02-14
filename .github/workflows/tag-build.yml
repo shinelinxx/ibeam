@@ -24,7 +24,7 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: zkd8907
+          username: shinelin
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Build and push
@@ -32,4 +32,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: zkd8907/ibeam:${{ env.TAG }}
+          tags: shinelin/ibeam:${{ env.TAG }}
