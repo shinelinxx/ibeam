@@ -40,7 +40,7 @@ cp config/service-0.yaml.example config/service-0.yaml
 `config/service-0.yaml` 示例：
 
 ```yaml
-ibgw_account:
+ibAcct:
   username: 你的IBKR用户名
   password: 你的IBKR密码
 
@@ -101,8 +101,8 @@ services:
 
 | YAML 路径 | 对应环境变量 | 默认值 | 说明 |
 |-----------|-------------|--------|------|
-| `ibgw_account.username` | `IBEAM_ACCOUNT` | — | IBKR 用户名（必填） |
-| `ibgw_account.password` | `IBEAM_PASSWORD` | — | IBKR 密码（必填） |
+| `ibAcct.username` | `IBEAM_ACCOUNT` | — | IBKR 用户名（必填） |
+| `ibAcct.password` | `IBEAM_PASSWORD` | — | IBKR 密码（必填） |
 | `twoFa.handler` | `IBEAM_TWO_FA_HANDLER` | `None` | 2FA 处理器 |
 | `twoFa.totpSecret` | `IBEAM_TOTP_SECRET` | `None` | TOTP Base32 密钥 |
 | `twoFa.selectTarget` | `IBEAM_TWO_FA_SELECT_TARGET` | `Mobile Authenticator App` | 2FA 设备名称 |

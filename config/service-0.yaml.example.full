@@ -2,8 +2,8 @@
 # 简单版见 service-0.yaml.example
 # 复制本文件为 service-0.yaml 并填入你的凭据
 
-### IBKR Gateway 账户凭据 ###
-ibgw_account:
+### IBKR 账户凭据 ###
+ibAcct:
   username: 你的IBKR用户名
   password: 你的IBKR密码
   # key: 可选的 Fernet 加密密钥

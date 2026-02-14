@@ -1,7 +1,7 @@
 # IBeam 配置文件（简单版）
 # 完整配置项见 service-0.yaml.example.full
 
-ibgw_account:
+ibAcct:
   username: 你的IBKR用户名
   password: 你的IBKR密码
 

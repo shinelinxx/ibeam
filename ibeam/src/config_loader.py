@@ -3,7 +3,7 @@
 The YAML structure uses nested keys that map to flat IBEAM_ environment variables.
 For example:
 
-    ibgw_account:
+    ibAcct:
       username: myuser
       password: mypass
     twoFa:
@@ -27,10 +27,10 @@ _LOGGER = logging.getLogger('ibeam.' + Path(__file__).stem)
 # Mapping from YAML dot-paths to IBEAM_ env var names.
 # Only keys listed here are recognized.
 _YAML_TO_ENV = {
-    # ibgw_account
-    'ibgw_account.username': 'IBEAM_ACCOUNT',
-    'ibgw_account.password': 'IBEAM_PASSWORD',
-    'ibgw_account.key': 'IBEAM_KEY',
+    # ibAcct
+    'ibAcct.username': 'IBEAM_ACCOUNT',
+    'ibAcct.password': 'IBEAM_PASSWORD',
+    'ibAcct.key': 'IBEAM_KEY',
 
     # twoFa
     'twoFa.handler': 'IBEAM_TWO_FA_HANDLER',
