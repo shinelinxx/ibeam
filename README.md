@@ -1,22 +1,20 @@
 # IBeam Fork
 
-IBeam 是一个用于 [Interactive Brokers（盈透证券）Client Portal Web API Gateway][gateway] 的自动认证与会话维护工具。基于 [Voyz/ibeam](https://github.com/Voyz/ibeam) 改进，使用 Playwright 替代 Selenium 实现浏览器自动化，更轻量、更稳定。
+IBeam 是一个用于 [Interactive Brokers（盈透证券）Client Portal Web API Gateway][gateway] 的自动认证与会话维护工具。基于 [Voyz/ibeam](https://github.com/Voyz/ibeam) 改进。
 
 > 感谢 [Voyz](https://github.com/Voyz) 创建的原始项目，本项目在其基础上进行了现代化改造。原项目采用 [Apache 2.0 协议](LICENSE)。
 
-## 相对于原版的改动
+## 相对于原版的主要改动
 
 | 改动项 | 原版 | 本版 |
 |--------|------|------|
-| 浏览器自动化 | Selenium + ChromeDriver + Xvfb | **Playwright**（内置浏览器管理，无需 chromedriver 和虚拟显示） |
-| Headless 模式 | `--headless` + `pyvirtualdisplay` | Playwright 原生 headless（更轻量、更稳定） |
-| 基础镜像 | `python:3.11-slim-bullseye` | **`python:3.12-slim-bookworm`** |
-| 依赖安全 | `pillow==9.5.*`、`cryptography==40.0.*` 等存在已知 CVE | 全部升级至安全版本 |
-| 2FA 兼容 | 硬编码 TOTP handler | 未开启 2FA 的账户也能正常登录 |
-| 2FA 设备选择 | 不支持多设备 | **自动选择 2FA 设备**（支持 IB Key / Mobile Authenticator App 等多设备） |
-| Gateway 启动等待 | 固定 20 秒，首次登录常因 Gateway 未就绪而失败 | **智能等待**（最长 90 秒，Gateway 就绪即刻登录） |
-| Submit 按钮选择器 | 匹配到多个按钮导致 strict mode violation | **精确匹配可见的提交按钮** |
-| Docker 镜像体积 | 安装 chromium + xorg + xvfb 等 20+ 个 apt 包 | 仅安装 Playwright Chromium（自动管理依赖），镜像更小 |
+| 浏览器自动化 | Selenium + ChromeDriver + Xvfb | **Playwright**（内置浏览器，无需额外驱动和虚拟显示） |
+| 配置方式 | 纯环境变量 | **YAML 配置文件**（支持多账户，环境变量仍可用且优先级更高） |
+| 2FA 设备选择 | 不支持多设备 | **支持多 2FA 设备选择**（IB Key / Mobile Authenticator App 等） |
+| 未开启 2FA | 必须配置 2FA handler | **兼容未开启 2FA 的账户** |
+| Gateway 启动等待 | 固定 20 秒 | **智能等待**（最长 90 秒，就绪即登录） |
+| Docker 镜像 | python:3.11 + chromium + xorg 等 20+ apt 包 | **python:3.12 + Playwright Chromium**，镜像更小 |
+| CI/CD | 无 | **GitHub Actions 自动构建并推送 Docker Hub 镜像** |
 
 ## 核心功能
 
