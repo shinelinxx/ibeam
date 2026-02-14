@@ -1,5 +1,6 @@
 import importlib
 import importlib.util
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -11,12 +12,15 @@ from ibeam.src.two_fa_handlers.notification_resend_handler import NotificationRe
 from ibeam.src.two_fa_handlers.totp_handler import TotpTwoFaHandler
 from ibeam.src.two_fa_handlers.two_fa_handler import TwoFaHandler
 
+_LOGGER = logging.getLogger('ibeam.' + Path(__file__).stem)
+
 
 def select(handler_name:str,
            driver_factory:DriverFactory,
            outputs_dir:str,
            custom_two_fa_handler:str,
-           inputs_dir: os.PathLike) -> Optional[TwoFaHandler]:
+           inputs_dir: os.PathLike,
+           has_credentials: bool = True) -> Optional[TwoFaHandler]:
 
     if handler_name == 'GOOGLE_MSG':
         handler = GoogleMessagesTwoFaHandler(driver_factory, outputs_dir=outputs_dir)
@@ -28,6 +32,10 @@ def select(handler_name:str,
         handler = TotpTwoFaHandler(outputs_dir=outputs_dir)
     elif handler_name == 'CUSTOM_HANDLER':
         handler = load_custom_two_fa_handler(custom_two_fa_handler, inputs_dir)(outputs_dir=outputs_dir)
+    elif has_credentials:
+        # Credentials configured but no 2FA handler specified — default to notification push
+        _LOGGER.info('No 2FA handler configured, defaulting to NOTIFICATION_RESEND (push notification)')
+        handler = NotificationResendTwoFaHandler(outputs_dir=outputs_dir)
     else:
         handler = None
 

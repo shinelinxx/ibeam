@@ -1,0 +1,11 @@
+# IBeam 配置文件（简单版）
+# 完整配置项见 service-0.yaml.example.full
+
+ibgw_account:
+  username: 你的IBKR用户名
+  password: 你的IBKR密码
+
+twoFa:
+  handler: TOTP
+  totpSecret: 你的Base32密钥
+  selectTarget: Mobile Authenticator App

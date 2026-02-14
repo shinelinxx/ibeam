@@ -35,7 +35,7 @@ RUN \
         fonts-noto-cjk && \
     rm -rf /var/lib/apt/lists/*
 
-COPY copy_cache/clientportal.gw /srv/clientportal.gw
+COPY clientportal.gw /srv/clientportal.gw
 COPY ibeam /srv/ibeam
 
 RUN \

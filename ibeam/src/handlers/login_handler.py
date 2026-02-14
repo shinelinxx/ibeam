@@ -168,14 +168,6 @@ class LoginHandler():
                    presubmit_buffer: int,
                    ):
 
-        if account is None:
-            _LOGGER.error('Account cannot be None. Specify by setting IBEAM_ACCOUNT environment variable.')
-            raise AttemptException(cause='shutdown')
-
-        if password is None:
-            _LOGGER.error('Password cannot be None. Specify by setting IBEAM_PASSWORD environment variable.')
-            raise AttemptException(cause='shutdown')
-
         page = driver.page
 
         user_name_loc = find_element(targets['USER_NAME'], driver)
@@ -494,6 +486,13 @@ class LoginHandler():
         driver = None
         website_version = -1
         targets = self.targets
+
+        # No credentials configured — skip browser automation, let user log in manually
+        if self.secrets_handler.account is None or self.secrets_handler.password is None:
+            _LOGGER.warning('No credentials configured (ibgw_account not set). '
+                            'Skipping automated login. Please open the Gateway login page '
+                            f'in your browser and log in manually: {self.base_url + self.route_auth}')
+            return False, False
 
         try:
             _LOGGER.info(f'Loading auth webpage at {self.base_url + self.route_auth}')

@@ -80,12 +80,15 @@ if __name__ == '__main__':
         page_load_timeout=cnf.PAGE_LOAD_TIMEOUT,
     )
 
+    has_credentials = bool(os.environ.get('IBEAM_ACCOUNT') and os.environ.get('IBEAM_PASSWORD'))
+
     two_fa_handler = two_fa_selector.select(
         handler_name=cnf.TWO_FA_HANDLER,
         driver_factory=driver_factory,
         outputs_dir=cnf.OUTPUTS_DIR,
         custom_two_fa_handler=cnf.CUSTOM_TWO_FA_HANDLER,
         inputs_dir=cnf.INPUTS_DIR,
+        has_credentials=has_credentials,
     )
 
     _LOGGER.info(f'Secrets source: {cnf.SECRETS_SOURCE}')

@@ -1,0 +1,48 @@
+# IBeam 配置文件（完整版）
+# 简单版见 service-0.yaml.example
+# 复制本文件为 service-0.yaml 并填入你的凭据
+
+### IBKR Gateway 账户凭据 ###
+ibgw_account:
+  username: 你的IBKR用户名
+  password: 你的IBKR密码
+  # key: 可选的 Fernet 加密密钥
+
+### 两步验证 ###
+# 如果你的账户未开启 2FA，请删除或注释掉 twoFa 部分
+#
+# handler 可选项：
+#   TOTP               — 基于时间的一次性密码（全自动，推荐）
+#   GOOGLE_MSG         — 通过 Google Messages 网页版读取 IB 短信验证码
+#   NOTIFICATION_RESEND — 点击"重新发送通知"，等待用户在 IBKR App 手动确认
+#   EXTERNAL_REQUEST   — 调用外部 HTTP 接口获取验证码
+#   CUSTOM_HANDLER     — 自定义 Python Handler
+twoFa:
+  handler: TOTP
+  totpSecret: 你的Base32密钥
+  # totpDigits: 6          # TOTP 位数（默认 6）
+  # totpPeriod: 30         # TOTP 刷新间隔秒数（默认 30）
+  # selectTarget: Mobile Authenticator App  # 多个 2FA 设备时选择的设备名称
+
+### 网关配置 ###
+# gateway:
+#   baseUrl: https://localhost:5000
+#   startup: 90            # Gateway 启动最大等待时间（秒）
+
+### 认证配置 ###
+# auth:
+#   pageLoadTimeout: 30    # 页面加载超时时间（秒）
+#   errorScreenshots: true  # 登录出错时是否截图
+#   maxFailedAuth: 5       # 最大失败认证次数
+#   usePaperAccount: false # 是否使用模拟账户
+
+### 服务配置 ###
+# service:
+#   maintenanceInterval: 60  # 维护检查间隔（秒）
+#   healthServerPort: 5001   # 健康检查服务端口
+#   requestTimeout: 15       # 请求超时时间（秒）
+
+### 日志配置 ###
+# logging:
+#   level: INFO
+#   toFile: true

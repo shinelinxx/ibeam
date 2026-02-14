@@ -33,23 +33,25 @@ IBeam 是一个用于 [Interactive Brokers（盈透证券）Client Portal Web AP
 复制示例并填入你的凭据：
 
 ```bash
-cp ibeam.env.example ibeam.env
-# 编辑 ibeam.env，填入你的 IBKR 账户和密码
+cp config/service-0.yaml.example config/service-0.yaml
+# 编辑 config/service-0.yaml，填入你的 IBKR 账户和密码
 ```
 
-`ibeam.env` 示例：
+`config/service-0.yaml` 示例：
 
+```yaml
+ibgw_account:
+  username: 你的IBKR用户名
+  password: 你的IBKR密码
+
+twoFa:
+  handler: TOTP
+  totpSecret: 你的Base32密钥
+  selectTarget: Mobile Authenticator App
 ```
-IBEAM_ACCOUNT=你的IBKR用户名
-IBEAM_PASSWORD=你的IBKR密码
 
-# 如果开启了 2FA：
-IBEAM_TWO_FA_HANDLER=TOTP
-IBEAM_TOTP_SECRET=你的Base32密钥
-
-# 如果有多个 2FA 设备，指定要使用的设备名称：
-# IBEAM_TWO_FA_SELECT_TARGET=Mobile Authenticator App
-```
+> 也支持环境变量方式，环境变量优先级高于 YAML。
+> 完整配置项见 `config/service-0.yaml.example.full`。
 
 ### 2. 构建并启动
 
@@ -78,8 +80,10 @@ services:
   ibeam:
     build: .
     container_name: ibeam
-    env_file:
-      - ibeam.env
+    environment:
+      - TRADER_INDEX=${TRADER_INDEX:-0}
+    volumes:
+      - ./config:/srv/config:ro
     ports:
       - 127.0.0.1:5000:5000
       - 127.0.0.1:5001:5001
@@ -87,25 +91,29 @@ services:
     restart: 'no'
 ```
 
+配置文件按 `TRADER_INDEX` 索引加载 `config/service-{TRADER_INDEX}.yaml`，默认为 `service-0.yaml`。多账户部署时创建 `service-1.yaml`、`service-2.yaml` 等即可。
+
 ## 配置项
 
-所有配置通过环境变量设置，常用项：
+支持 YAML 配置文件（推荐）和环境变量两种方式，环境变量优先级更高。
 
-| 环境变量 | 默认值 | 说明 |
-|----------|--------|------|
-| `IBEAM_ACCOUNT` | — | IBKR 用户名（必填） |
-| `IBEAM_PASSWORD` | — | IBKR 密码（必填） |
-| `IBEAM_GATEWAY_BASE_URL` | `https://localhost:5000` | Gateway 地址 |
-| `IBEAM_MAINTENANCE_INTERVAL` | `60` | 维护检查间隔（秒） |
-| `IBEAM_TWO_FA_HANDLER` | `None` | 2FA 处理器（`TOTP` / `GOOGLE_MSG` / `NOTIFICATION_RESEND` / `EXTERNAL_REQUEST` / `CUSTOM_HANDLER`） |
-| `IBEAM_TOTP_SECRET` | `None` | TOTP Base32 密钥 |
-| `IBEAM_TWO_FA_SELECT_TARGET` | `Mobile Authenticator App` | 多设备时选择的 2FA 设备名称 |
-| `IBEAM_GATEWAY_STARTUP` | `90` | Gateway 启动最大等待时间（秒） |
-| `IBEAM_PAGE_LOAD_TIMEOUT` | `15` | 页面加载超时时间（秒） |
-| `IBEAM_LOG_LEVEL` | `INFO` | 日志级别 |
-| `IBEAM_ERROR_SCREENSHOTS` | `False` | 登录出错时是否截图 |
-| `IBEAM_MAX_FAILED_AUTH` | `5` | 最大失败认证次数（防止账户锁定） |
-| `IBEAM_HEALTH_SERVER_PORT` | `5001` | 健康检查服务端口 |
+### YAML 配置（推荐）
+
+| YAML 路径 | 对应环境变量 | 默认值 | 说明 |
+|-----------|-------------|--------|------|
+| `ibgw_account.username` | `IBEAM_ACCOUNT` | — | IBKR 用户名（必填） |
+| `ibgw_account.password` | `IBEAM_PASSWORD` | — | IBKR 密码（必填） |
+| `twoFa.handler` | `IBEAM_TWO_FA_HANDLER` | `None` | 2FA 处理器 |
+| `twoFa.totpSecret` | `IBEAM_TOTP_SECRET` | `None` | TOTP Base32 密钥 |
+| `twoFa.selectTarget` | `IBEAM_TWO_FA_SELECT_TARGET` | `Mobile Authenticator App` | 2FA 设备名称 |
+| `gateway.baseUrl` | `IBEAM_GATEWAY_BASE_URL` | `https://localhost:5000` | Gateway 地址 |
+| `gateway.startup` | `IBEAM_GATEWAY_STARTUP` | `90` | Gateway 启动等待（秒） |
+| `auth.pageLoadTimeout` | `IBEAM_PAGE_LOAD_TIMEOUT` | `15` | 页面加载超时（秒） |
+| `auth.errorScreenshots` | `IBEAM_ERROR_SCREENSHOTS` | `false` | 出错时截图 |
+| `auth.maxFailedAuth` | `IBEAM_MAX_FAILED_AUTH` | `5` | 最大失败次数 |
+| `service.maintenanceInterval` | `IBEAM_MAINTENANCE_INTERVAL` | `60` | 维护间隔（秒） |
+| `service.healthServerPort` | `IBEAM_HEALTH_SERVER_PORT` | `5001` | 健康检查端口 |
+| `logging.level` | `IBEAM_LOG_LEVEL` | `INFO` | 日志级别 |
 
 完整配置项请参考 [`ibeam/src/var.py`](ibeam/src/var.py)。
 
@@ -121,7 +129,7 @@ services:
 ## 安全提示
 
 - 凭据需以环境变量形式存储，存在安全风险
-- `ibeam.env` 已在 `.gitignore` 中，不会被提交
+- `config/service-*.yaml` 已在 `.gitignore` 中，不会被提交
 - 建议使用 Docker Swarm Secrets 或 GCP Secret Manager 等方案管理敏感信息
 - 生产环境建议限制端口绑定到 `127.0.0.1`
 

@@ -1,9 +1,11 @@
 *.iml
-ibeam.env
-/copy_cache/chrome_driver
+# config 目录下的实际配置文件（含密钥），但保留 example
+config/service-*.yaml
+!config/service-*.yaml.example
+!config/service-*.yaml.example.full
 ibeam.egg-info
 /outputs/
-/copy_cache/clientportal.gw/root/webapps/demo/gateway.demo.js
+/clientportal.gw/root/webapps/demo/gateway.demo.js
 /dev
 __pycache__
 .idea

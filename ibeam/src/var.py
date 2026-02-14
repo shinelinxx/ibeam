@@ -2,6 +2,13 @@ import os
 
 from ibeam.src.utils.py_utils import strtobool
 
+# Load YAML config before reading env vars
+try:
+    from ibeam.src.config_loader import load_yaml_config
+    load_yaml_config()
+except Exception:
+    pass  # YAML loading is optional; env vars still work
+
 UNDEFINED = object()
 
 
