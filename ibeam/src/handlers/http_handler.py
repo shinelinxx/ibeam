@@ -115,9 +115,9 @@ class HttpHandler():
         self.route_reauthenticate = route_reauthenticate
         self.route_initialise = route_initialise
         self.request_timeout = request_timeout
-        self.build_ssh_context()
+        self.build_ssl_context()
 
-    def build_ssh_context(self):
+    def build_ssl_context(self):
         self.ssl_context = ssl.SSLContext()
         if self.inputs_handler.valid_certificates:
             self.ssl_context.verify_mode = ssl.CERT_REQUIRED
@@ -298,4 +298,4 @@ class HttpHandler():
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.build_ssh_context()
+        self.build_ssl_context()

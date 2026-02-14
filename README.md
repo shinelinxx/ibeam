@@ -1,260 +1,140 @@
-*This library is currently being beta-tested. See something that's broken? Did we get something
-wrong? [Create an issue and let us know!][issues]*
+# IBeam Fork
 
-<p align="center">
-    <a id="ibeam" href="#ibeam">
-        <img src="https://github.com/Voyz/ibeam/blob/master/media/ibeam_logo.png" alt="IBeam logo" title="IBeam logo" width="600"/>
-    </a>
-</p>
+IBeam 是一个用于 [Interactive Brokers（盈透证券）Client Portal Web API Gateway][gateway] 的自动认证与会话维护工具。基于 [Voyz/ibeam](https://github.com/Voyz/ibeam) 改进，使用 Playwright 替代 Selenium 实现浏览器自动化，更轻量、更稳定。
 
-<p align="center">
-    <a href="https://opensource.org/licenses/Apache-2.0">
-        <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"/> 
-    </a>
-    <a href="https://github.com/Voyz/ibeam/releases">
-        <img src="https://img.shields.io/pypi/v/ibeam?label=version"/> 
-    </a>
-</p>
+> 感谢 [Voyz](https://github.com/Voyz) 创建的原始项目，本项目在其基础上进行了现代化改造。原项目采用 [Apache 2.0 协议](LICENSE)。
 
-IBeam is an authentication and maintenance tool used for
-the [Interactive Brokers Client Portal Web API Gateway.][gateway]
+## 相对于原版的改动
 
-Features:
+| 改动项 | 原版 | 本版 |
+|--------|------|------|
+| 浏览器自动化 | Selenium + ChromeDriver + Xvfb | **Playwright**（内置浏览器管理，无需 chromedriver 和虚拟显示） |
+| Headless 模式 | `--headless` + `pyvirtualdisplay` | Playwright 原生 headless（更轻量、更稳定） |
+| 基础镜像 | `python:3.11-slim-bullseye` | **`python:3.12-slim-bookworm`** |
+| 依赖安全 | `pillow==9.5.*`、`cryptography==40.0.*` 等存在已知 CVE | 全部升级至安全版本 |
+| 2FA 兼容 | 硬编码 TOTP handler | 未开启 2FA 的账户也能正常登录 |
+| 2FA 设备选择 | 不支持多设备 | **自动选择 2FA 设备**（支持 IB Key / Mobile Authenticator App 等多设备） |
+| Gateway 启动等待 | 固定 20 秒，首次登录常因 Gateway 未就绪而失败 | **智能等待**（最长 90 秒，Gateway 就绪即刻登录） |
+| Submit 按钮选择器 | 匹配到多个按钮导致 strict mode violation | **精确匹配可见的提交按钮** |
+| Docker 镜像体积 | 安装 chromium + xorg + xvfb 等 20+ 个 apt 包 | 仅安装 Playwright Chromium（自动管理依赖），镜像更小 |
 
-* **Facilitates continuous headless run of the Gateway.**
+## 核心功能
 
-* **No physical display required** - virtual display buffer can be used instead.
-* **No interaction from the user required** - automated injection of IBKR credentials into the authentication page used
-  by the Gateway.
-* **TLS certificate support** - you can provide your own certificates.
-* **Containerised using Docker** - it's a plug and play image, although IBeam can be used as standalone too.
-* **Not so secure** - Yupp, you'll need to store the credentials somewhere, and that's a risk. Read more about it
-  in [Security](#security).
+- **无人值守的 Gateway 认证** — 自动注入 IBKR 凭据完成登录
+- **会话保活** — 每 60 秒执行 tickle + validate 维护循环，会话失效时自动重新登录
+- **2FA 支持** — TOTP、Google Messages、通知推送、外部请求、自定义 Handler
+- **健康检查** — 内置 HTTP 健康服务（端口 5001），提供 `/livez`、`/readyz`、`/activate`、`/deactivate` 端点
+- **Docker 容器化** — 开箱即用
 
-If you need a Python client for IBKR Web API, consider using [IBind][ibind]. 
+## 快速开始
 
-**NOTE**: IBeam is not designed to automate logging into TWS or IB Gateway (also known as TWS Gateway). Use [IBC][ibc] for that.
-There are also [Docker image projects that include TWS/Gateway and IBC][ib-gateway-docker].
+### 1. 准备配置文件
 
-## Documentation:
+复制示例并填入你的凭据：
 
-* Setup
-    * [Installation and Startup][installation-and-startup]
-    * [Runtime Environment][runtime-environment]
-* Advanced
-    * [Inputs And Outputs][inputs-and-outputs]
-    * [IBeam Configuration][ibeam-configuration]
-    * [Gateway Configuration][gateway-configuration]
-    * [TLS Certificates and HTTPS][tls-and-https]
-    * [Two Factor Authentication][two-fa]
-* More
-    * [Troubleshooting][troubleshooting]
-
-<a href="https://www.youtube.com/watch?v=603n4xV26S0">
-    <img src="https://github.com/Voyz/voyz_public/blob/master/ibeam_promo_vidA_A01.gif" alt="IBeam showcase gif" title="IBeam showcase gif" width="500"/>
-</a>
-
-## Quick start
-
-### Installation
-
-#### Docker Image (Recommended):
-
-```posh
-docker pull voyz/ibeam
+```bash
+cp ibeam.env.example ibeam.env
+# 编辑 ibeam.env，填入你的 IBKR 账户和密码
 ```
 
-#### Standalone:
+`ibeam.env` 示例：
 
-```posh
-pip install ibeam
+```
+IBEAM_ACCOUNT=你的IBKR用户名
+IBEAM_PASSWORD=你的IBKR密码
+
+# 如果开启了 2FA：
+IBEAM_TWO_FA_HANDLER=TOTP
+IBEAM_TOTP_SECRET=你的Base32密钥
+
+# 如果有多个 2FA 设备，指定要使用的设备名称：
+# IBEAM_TWO_FA_SELECT_TARGET=Mobile Authenticator App
 ```
 
-### Startup
+### 2. 构建并启动
 
-#### Docker
-
-```posh
-docker run --env IBEAM_ACCOUNT=your_account123 --env IBEAM_PASSWORD=your_password123 -p 5000:5000 voyz/ibeam
+```bash
+docker compose up -d --build
 ```
 
-#### docker compose:
+### 3. 验证
 
-Create a `compose.yaml` file with the following contents:
+```bash
+curl -X GET "https://localhost:5000/v1/api/iserver/auth/status" -k
+```
+
+健康检查：
+
+```bash
+curl http://localhost:5001/readyz
+```
+
+## Docker Compose 配置
+
+项目已包含 `docker-compose.yaml`：
 
 ```yaml
 services:
   ibeam:
-    image: voyz/ibeam
+    build: .
     container_name: ibeam
     env_file:
-      - env.list
+      - ibeam.env
     ports:
-      - 5000:5000
-      - 5001:5001
-    network_mode: bridge # Required due to clientportal.gw IP whitelist
-    restart: 'no' # Prevents IBEAM_MAX_FAILED_AUTH from being exceeded
+      - 127.0.0.1:5000:5000
+      - 127.0.0.1:5001:5001
+    network_mode: bridge
+    restart: 'no'
 ```
 
-Create an `env.list` file in the same directory with the following contents:
+## 配置项
 
-```posh
-IBEAM_ACCOUNT=your_account123
-IBEAM_PASSWORD=your_password123
-```
+所有配置通过环境变量设置，常用项：
 
-Run the following command:
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `IBEAM_ACCOUNT` | — | IBKR 用户名（必填） |
+| `IBEAM_PASSWORD` | — | IBKR 密码（必填） |
+| `IBEAM_GATEWAY_BASE_URL` | `https://localhost:5000` | Gateway 地址 |
+| `IBEAM_MAINTENANCE_INTERVAL` | `60` | 维护检查间隔（秒） |
+| `IBEAM_TWO_FA_HANDLER` | `None` | 2FA 处理器（`TOTP` / `GOOGLE_MSG` / `NOTIFICATION_RESEND` / `EXTERNAL_REQUEST` / `CUSTOM_HANDLER`） |
+| `IBEAM_TOTP_SECRET` | `None` | TOTP Base32 密钥 |
+| `IBEAM_TWO_FA_SELECT_TARGET` | `Mobile Authenticator App` | 多设备时选择的 2FA 设备名称 |
+| `IBEAM_GATEWAY_STARTUP` | `90` | Gateway 启动最大等待时间（秒） |
+| `IBEAM_PAGE_LOAD_TIMEOUT` | `15` | 页面加载超时时间（秒） |
+| `IBEAM_LOG_LEVEL` | `INFO` | 日志级别 |
+| `IBEAM_ERROR_SCREENSHOTS` | `False` | 登录出错时是否截图 |
+| `IBEAM_MAX_FAILED_AUTH` | `5` | 最大失败认证次数（防止账户锁定） |
+| `IBEAM_HEALTH_SERVER_PORT` | `5001` | 健康检查服务端口 |
 
-```posh
-docker compose up -d
-```
+完整配置项请参考 [`ibeam/src/var.py`](ibeam/src/var.py)。
 
-#### Standalone:
+## 工作原理
 
-```posh
-python ibeam_starter.py
-```
+1. 启动 IB Gateway Java 进程
+2. 通过 tickle 端点检查 Gateway 是否运行
+3. 如果未认证，使用 Playwright 打开 Gateway 认证页面，自动填入凭据并提交
+4. 处理 2FA（如已配置）
+5. 启动定时维护循环（tickle + validate），保持会话活跃
+6. 会话过期或竞争时自动重新认证
 
-----
-Once started, verify the Gateway is running by calling:
+## 安全提示
 
-```posh
-curl -X GET "https://localhost:5000/v1/api/iserver/auth/status" -k
-```
+- 凭据需以环境变量形式存储，存在安全风险
+- `ibeam.env` 已在 `.gitignore` 中，不会被提交
+- 建议使用 Docker Swarm Secrets 或 GCP Secret Manager 等方案管理敏感信息
+- 生产环境建议限制端口绑定到 `127.0.0.1`
 
-Read more in [Installation and Startup][installation-and-startup] and [Advanced Secrets][advanced-secrets].
+## 致谢
 
-## <a name="how-ibeam-works"></a>How does IBeam work?
+本项目基于 [Voyz/ibeam](https://github.com/Voyz/ibeam)（Apache 2.0 协议）进行二次开发，感谢原作者 [Voy Zan](https://voyzan.com) 及所有贡献者的工作。
 
-In a standard startup IBeam performs the following:
+## 许可证
 
-1. **Copy inputs** from the Inputs Directory to Gateway's `root` folder (if provided).
-1. **Ensure the Gateway is running** by calling the tickle endpoint. If not:
-    1. Start the Gateway in a new shell.
-1. **Ensure the Gateway has an active session that is authenticated** by calling the tickle endpoint. If not:
-    1. Create a new Chrome Driver instance using `selenium`.
-    1. Start a virtual display using `pyvirtualdisplay`.
-    1. Access the Gateway's authentication website.
-    1. Once loaded, input username and password and submit the form.
-    1. Wait for the login confirmation and quit the website.
-    1. Verify once again if Gateway is running and authenticated.
-1. **Start the maintenance**, attempting to keep the Gateway alive and authenticated. Will repeat login if finds no
-   active session or the session is not authenticated.
+[Apache License 2.0](LICENSE)
 
-## <a name="security"></a>Security
+## 免责声明
 
-Please feel free to suggest improvements to the security risks currently present in IBeam and the Gateway
-by [opening an issue][issues] on GitHub.
-
-### Credentials
-
-The Gateway requires credentials to be provided on a regular basis. The only way to avoid manually having to input them
-every time is to store the credentials somewhere. This alone is a security risk.
-
-By default, IBeam expects the credentials to be available as environment variables during runtime. Whether running IBeam
-in a container or directly on a host machine, an unwanted user may gain access to these credentials. If your setup is
-exposed to a risk of someone unauthorised reading the credentials, you may want to look for other solutions than IBeam
-or use the Gateway standalone and authenticate manually each time.
-
-There are currently two proposed solutions to this problem:
-
-1. **Docker Swarm**
-
-    You can remove one of the attack vectors by using a locked Docker Swarm instance, installing your credentials into it using Docker Secrets, and telling IBeam to read the secrets from the container's in-memory `/run` filesystem.
-    This configuration allows the credentials to be encrypted when at rest. 
-    But the credentials are still accessible in plaintext via the running container, so if a security issue arises where an exploit exists for the port 5000 API, or if your host is compromised and an attacker can access your running container, then the secret could be exposed. 
-2. **GCP Secret Manager**
-
-    If you're deploying IBeam on Google Cloud Platform, you can securely use the Service Account's credentials to access [GCP Secret Manager][secret-manager-docs]. This is possible since all types of GCP deployment (currently: Compute Engine, Kubernetes, Cloud Run and Cloud Functions) are running within a context that has a Service Account available. IBeam can query Google's metadata server when running on GCP for the Service Account's access token, and use that to read secrets from the Secret Manager.
-
-
-See [Advanced Secrets][advanced-secrets] for more information.
-
-## Roadmap
-
-IBeam was built by traders just like you. We made it open source in order to collectively build a reliable solution. If
-you enjoy using IBeam, we encourage you to attempt implementing one of the following tasks:
-
-* ~~Include TLS certificates.~~
-* ~~Two Factor Authentictaion.~~
-* Remove necessity to install Java.
-* ~~Remove necessity to install Chrome or find a lighter replacement.~~
-* Add usage examples.
-* Full test coverage.
-* ~~Improve the security issues.~~
-* Find a lighter replacement to using Chromium
-
-Read the [CONTRIBUTING](https://github.com/Voyz/ibeam/blob/master/CONTRIBUTING.md) guideline to get started.
-
-----
-
-## Licence
-
-See [LICENSE](https://github.com/Voyz/ibeam/blob/master/LICENSE)
-
-## Disclaimer
-
-IBeam is not built, maintained, or endorsed by the Interactive Brokers.
-
-Use at own discretion. IBeam and its authors give no guarantee of uninterrupted run of and access to the Interactive
-Brokers Client Portal Web API Gateway. You should prepare for breaks in connectivity to IBKR servers and should not
-depend on continuous uninterrupted run of the Gateway. IBeam requires your private credentials to be exposed to a
-security risk, potentially resulting in, although not limited to interruptions, loss of capital and loss of access to
-your account. To partially reduce the potential risk use Paper Account credentials.
-
-IBeam is provided on an AS IS and AS AVAILABLE basis without any representation or endorsement made and without warranty
-of any kind whether express or implied, including but not limited to the implied warranties of satisfactory quality,
-fitness for a particular purpose, non-infringement, compatibility, security and accuracy. To the extent permitted by
-law, IBeam's authors will not be liable for any indirect or consequential loss or damage whatever (including without
-limitation loss of business, opportunity, data, profits) arising out of or in connection with the use of IBeam. IBeam's
-authors make no warranty that the functionality of IBeam will be uninterrupted or error free, that defects will be
-corrected or that IBeam or the server that makes it available are free of viruses or anything else which may be harmful
-or destructive.
-
-## Built by Voy
-
-Hi! Thanks for checking out and using this library.
-
-If you are in need of some help with your project and would like to hire me, or just wanna chat about trading - I'm happy to talk.
-
-You can contact me through: https://voyzan.com
-
-Or if you'd just want to give something back, I've got a Buy Me A Coffee account:
-
-<a href="https://www.buymeacoffee.com/voyzan" rel="nofollow">
-    <img src="https://raw.githubusercontent.com/Voyz/voyz_public/master/vz_BMC.png" alt="Buy Me A Coffee" style="max-width:100%;" width="192">
-</a>
-
-Thanks and have an awesome day 👋
-
-[home]: https://github.com/Voyz/ibeam/wiki
-
-[installation-and-startup]: https://github.com/Voyz/ibeam/wiki/Installation-and-startup
-
-[runtime-environment]: https://github.com/Voyz/ibeam/wiki/Runtime-environment
-
-[ibeam-configuration]: https://github.com/Voyz/ibeam/wiki/IBeam-Configuration
-
-[gateway-configuration]: https://github.com/Voyz/ibeam/wiki/Gateway-Configuration
-
-[inputs-and-outputs]: https://github.com/Voyz/ibeam/wiki/Inputs-And-Outputs
-
-[two-fa]: https://github.com/Voyz/ibeam/wiki/Two-Factor-Authentication
-
-[tls-and-https]: https://github.com/Voyz/ibeam/wiki/TLS-Certificates-and-HTTPS
-
-[advanced-secrets]: https://github.com/Voyz/ibeam/wiki/Advanced-Secrets
-
-[troubleshooting]: https://github.com/Voyz/ibeam/wiki/Troubleshooting
-
-[issues]: https://github.com/Voyz/ibeam/issues
+本项目非 Interactive Brokers 官方产品。使用风险自负。IBeam 需要存储您的私有凭据，这可能导致包括但不限于中断、资金损失和账户访问权丧失等风险。建议使用模拟账户凭据以降低潜在风险。
 
 [gateway]: https://ibkrcampus.com/ibkr-api-page/webapi-doc/
-
-[ibc]: https://github.com/IbcAlpha/IBC
-
-[ib-gateway-docker]: https://github.com/UnusualAlpha/ib-gateway-docker
-
-[secret-manager-docs]: https://cloud.google.com/secret-manager/docs
-
-[ibind]: https://github.com/Voyz/ibind

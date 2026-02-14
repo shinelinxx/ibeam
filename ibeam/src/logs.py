@@ -71,6 +71,8 @@ class DailyRotatingFileHandler(logging.FileHandler):
 
     def emit(self, record):
         if self.get_timestamp() != self.timestamp:
+            if self.stream:
+                self.stream.close()
             self.stream = self._open()
 
         super().emit(record)

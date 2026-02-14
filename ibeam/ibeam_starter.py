@@ -3,6 +3,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 def add_to_path():
@@ -75,7 +76,6 @@ if __name__ == '__main__':
     )
 
     driver_factory = DriverFactory(
-        driver_path=cnf.CHROME_DRIVER_PATH,
         ui_scaling=cnf.UI_SCALING,
         page_load_timeout=cnf.PAGE_LOAD_TIMEOUT,
     )
@@ -141,14 +141,25 @@ if __name__ == '__main__':
         active=cnf.START_ACTIVE,
     )
 
-    def stop(_, _1):
+    def stop(signum, frame):
         client.shutdown()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
 
-    _LOGGER.info(f'Configuration:\n{cnf.all_variables}')
+    _SENSITIVE_KEYS = {'TOTP_SECRET', 'PASSWORD', 'KEY', 'GCP_SECRETS_URL'}
+
+    def _sanitize_config(variables: dict) -> dict:
+        sanitized = {}
+        for k, v in variables.items():
+            if any(sk in k for sk in _SENSITIVE_KEYS) and v is not None:
+                sanitized[k] = '********'
+            else:
+                sanitized[k] = v
+        return sanitized
+
+    _LOGGER.info(f'Configuration:\n{_sanitize_config(cnf.all_variables)}')
 
     if args.start:
         pids = process_handler.start_gateway()
@@ -157,7 +168,7 @@ if __name__ == '__main__':
         else:
             _LOGGER.info(f'Gateway not running.')
         while True:
-            pass
+            time.sleep(1)
     elif args.authenticate:
         success, _ = strategy_handler.try_authenticating()
         _LOGGER.info(f'Gateway {"" if success else "not "}authenticated.')

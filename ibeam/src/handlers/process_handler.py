@@ -75,13 +75,13 @@ def _try_starting_gateway(
         _start_gateway(gateway_dir)
 
         server_process_pids = None
-
-        # let's try to communicate with the Gateway
         t_end = time.time() + gateway_startup
 
+        # Phase 1: wait for the Gateway process to appear
         while time.time() < t_end:
             processes = _find_procs_by_name(gateway_process_match)
             if len(processes) == 0:
+                time.sleep(1)
                 continue
 
             server_process_pids = [process.pid for process in processes]
@@ -92,15 +92,19 @@ def _try_starting_gateway(
             _LOGGER.error(f'Cannot find gateway process by name: "{gateway_process_match}"')
             return None
 
+        # Phase 2: wait for the Gateway to accept connections (use remaining time)
         ping_success = False
+        attempt = 0
         while time.time() < t_end:
+            attempt += 1
             status = verify_connection()
             if not status.running:
                 seconds_remaining = round(t_end - time.time())
                 if seconds_remaining > 0:
-                    _LOGGER.info(
-                        f'Cannot ping Gateway. Retrying for another {seconds_remaining} seconds')
-                    time.sleep(1)
+                    if attempt <= 3 or attempt % 5 == 0:
+                        _LOGGER.info(
+                            f'Waiting for Gateway to be ready... ({seconds_remaining}s remaining)')
+                    time.sleep(2)
             else:
                 _LOGGER.info('Gateway connection established')
                 ping_success = True

@@ -20,10 +20,10 @@ OUTPUTS_DIR = os.environ.get('IBEAM_OUTPUTS_DIR',
 GATEWAY_DIR = os.environ.get('IBEAM_GATEWAY_DIR', UNDEFINED)
 """Path to the root of the IBKR Gateway."""
 
-CHROME_DRIVER_PATH = os.environ.get('IBEAM_CHROME_DRIVER_PATH', UNDEFINED)
-"""Path to the Chrome Driver executable file."""
+CHROME_DRIVER_PATH = os.environ.get('IBEAM_CHROME_DRIVER_PATH', None)
+"""Deprecated: Playwright manages its own browser. Kept for backward compatibility."""
 
-GATEWAY_STARTUP = int(os.environ.get('IBEAM_GATEWAY_STARTUP', 20))
+GATEWAY_STARTUP = int(os.environ.get('IBEAM_GATEWAY_STARTUP', 90))
 """How many seconds to wait for the Gateway to respond after its startup."""
 
 GATEWAY_PROCESS_MATCH = os.environ.get('IBEAM_GATEWAY_PROCESS_MATCH', 'ibgroup.web.core.clientportal.gw.GatewayStart')
@@ -105,7 +105,7 @@ USER_NAME_EL = os.environ.get('IBEAM_USER_NAME_EL', None)
 PASSWORD_EL = os.environ.get('IBEAM_PASSWORD_EL', 'NAME@@password')
 """HTML element name attribute containing the password input field."""
 
-SUBMIT_EL = os.environ.get('IBEAM_SUBMIT_EL', 'CSS_SELECTOR@@.btn.btn-lg.btn-primary')
+SUBMIT_EL = os.environ.get('IBEAM_SUBMIT_EL', 'CSS_SELECTOR@@button.btn.btn-lg.btn-primary[type="submit"]:visible')
 """HTML element name attribute containing the submit button."""
 
 ERROR_EL = os.environ.get('IBEAM_ERROR_EL', None)
@@ -158,13 +158,13 @@ UI_SCALING = float(os.environ.get('IBEAM_UI_SCALING', 1))
 
 ########### TWO-FACTOR AUTHENTICATION ###########
 
-TWO_FA_EL_ID = os.environ.get('IBEAM_TWO_FA_EL_ID', 'ID@@twofactbase')
+TWO_FA_EL_ID = os.environ.get('IBEAM_TWO_FA_EL_ID', 'CSS_SELECTOR@@#xyz-field-bronze-response:visible, #xyz-field-silver-response:visible')
 """HTML element check for if Gateway will require 2FA code authentication."""
 
 TWO_FA_NOTIFICATION_EL = os.environ.get('IBEAM_TWO_FA_NOTIFICATION_EL', 'CLASS_NAME@@login-step-notification')
 """HTML element check for if Gateway will require 2FA notification authentication."""
 
-TWO_FA_INPUT_EL_ID = os.environ.get('IBEAM_TWO_FA_INPUT_EL_ID', 'ID@@xyz-field-bronze-response')
+TWO_FA_INPUT_EL_ID = os.environ.get('IBEAM_TWO_FA_INPUT_EL_ID', 'CSS_SELECTOR@@#xyz-field-bronze-response:visible, #xyz-field-silver-response:visible')
 """HTML element to input 2FA code into"""
 
 TWO_FA_HANDLER = os.environ.get('IBEAM_TWO_FA_HANDLER', None)
@@ -173,13 +173,25 @@ TWO_FA_HANDLER = os.environ.get('IBEAM_TWO_FA_HANDLER', None)
 STRICT_TWO_FA_CODE = to_bool(os.environ.get('IBEAM_STRICT_TWO_FA_CODE', True))
 """Whether to ensure only 2FA code made of 6 digits can be used."""
 
-TWO_FA_SELECT_EL_ID = os.environ.get('IBEAM_TWO_FA_SELECT_EL_ID', 'ID@@xyz-field-bronze-response')
+TWO_FA_SELECT_EL_ID = os.environ.get('IBEAM_TWO_FA_SELECT_EL_ID', 'CSS_SELECTOR@@select:visible')
 """HTML element check for if Gateway requires to select the 2FA method."""
 
-TWO_FA_SELECT_TARGET = os.environ.get('IBEAM_TWO_FA_SELECT_TARGET', 'IB Key')
-"""Option that is to be chosen in the 2FA select dropdown"""
+TWO_FA_SELECT_TARGET = os.environ.get('IBEAM_TWO_FA_SELECT_TARGET', 'Mobile Authenticator App')
+"""Option label to choose in the 2FA select dropdown."""
 
 CUSTOM_TWO_FA_HANDLER = os.environ.get('IBEAM_CUSTOM_TWO_FA_HANDLER', 'custom_two_fa_handler.CustomTwoFaHandler')
 """Fully qualified path of the custom 2FA handler in the inputs directory."""
+
+########### TOTP AUTHENTICATION ###########
+
+TOTP_SECRET = os.environ.get('IBEAM_TOTP_SECRET', None)
+"""Base32-encoded TOTP secret key from IBKR's Secure Login System (SLS).
+Activate via IBKR Account Management -> Settings -> Secure Login System -> activate third-party authenticator."""
+
+TOTP_DIGITS = int(os.environ.get('IBEAM_TOTP_DIGITS', 6))
+"""Number of digits in the TOTP code. Default is 6 (standard for IBKR)."""
+
+TOTP_PERIOD = int(os.environ.get('IBEAM_TOTP_PERIOD', 30))
+"""Time period in seconds for TOTP code rotation. Default is 30."""
 
 all_variables = {key: value for key, value in vars().items() if (not key.startswith("__") and key.isupper() and key != 'UNDEFINED')}

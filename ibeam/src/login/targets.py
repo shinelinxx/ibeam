@@ -2,68 +2,53 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.sync_api import Page, Locator, expect
 
 from ibeam.config import Config
-from ibeam.src.utils.selenium_utils import text_to_be_present_in_element
 
 _LOGGER = logging.getLogger('ibeam.' + Path(__file__).stem)
 
 
 class Target():
-    def __init__(
-            self,
-            variable: str,
-            ):
-        type, identifier = variable.split("@@")
-        self.type = type
+    def __init__(self, variable: str):
+        type_str, identifier = variable.split("@@")
+        self.type = type_str
         self.identifier = identifier
         self.variable = variable
 
-        if type == 'ID':
-            self.by = By.ID
-            self._identify = self.identify_by_id
-        elif type == 'CSS_SELECTOR':
-            self.by = By.CSS_SELECTOR
-            self._identify = self.identify_by_css_selector
-        elif type == 'CLASS_NAME':
-            self.by = By.CLASS_NAME
-            self._identify = self.identify_by_class
-        elif type == 'NAME':
-            self.by = By.NAME
-            self._identify = self.identify_by_name
-        elif type == 'FOR':
-            self.by = By.CSS_SELECTOR
-            self._identify = self.identify_by_for
-        elif type == 'TAG_NAME':
-            self.by = [(By.TAG_NAME, 'pre'), (By.TAG_NAME, 'body')]
-            self._identify = self.identify_by_text
+    def locator(self, page: Page) -> Locator:
+        """Return a Playwright Locator for this target."""
+        if self.type == 'ID':
+            return page.locator(f'#{self.identifier}')
+        elif self.type == 'CSS_SELECTOR':
+            return page.locator(self.identifier)
+        elif self.type == 'CLASS_NAME':
+            return page.locator(f'.{self.identifier}')
+        elif self.type == 'NAME':
+            return page.locator(f'[name="{self.identifier}"]')
+        elif self.type == 'FOR':
+            return page.locator(self.identifier)
+        elif self.type == 'TAG_NAME':
+            # TAG_NAME@@text means we look for the text in <pre> or <body>
+            return page.locator('pre, body')
         else:
-            raise RuntimeError(f'Unknown target type: {type}@@{identifier}')
+            raise RuntimeError(f'Unknown target type: {self.type}@@{self.identifier}')
 
-    def identify(self, trigger: WebElement) -> bool:
-        return self._identify(trigger)
-
-    def identify_by_id(self, trigger: WebElement) -> bool:
-        return self.identifier in trigger.get_attribute('id')
-
-    def identify_by_css_selector(self, trigger: WebElement) -> bool:
-        return self.identifier.replace('.', ' ').strip() in trigger.get_attribute('class')
-
-    def identify_by_class(self, trigger: WebElement) -> bool:
-        return self.identifier in trigger.get_attribute('class')
-
-    def identify_by_name(self, trigger: WebElement) -> bool:
-        return self.identifier in trigger.get_attribute('name')
-
-    def identify_by_text(self, trigger: WebElement) -> bool:
-        return self.identifier in trigger.text
-
-    def identify_by_for(self, trigger: WebElement) -> bool:
-        return self.identifier in trigger.get_attribute('for')
+    def identify(self, element_info: dict) -> bool:
+        """Identify if a trigger matches this target based on element attributes."""
+        if self.type == 'ID':
+            return self.identifier in (element_info.get('id') or '')
+        elif self.type == 'CSS_SELECTOR':
+            return self.identifier.replace('.', ' ').strip() in (element_info.get('class') or '')
+        elif self.type == 'CLASS_NAME':
+            return self.identifier in (element_info.get('class') or '')
+        elif self.type == 'NAME':
+            return self.identifier in (element_info.get('name') or '')
+        elif self.type == 'TAG_NAME':
+            return self.identifier in (element_info.get('text') or '')
+        elif self.type == 'FOR':
+            return self.identifier in (element_info.get('for') or '')
+        return False
 
     def __repr__(self):
         return f'Target({self.variable})'
@@ -77,12 +62,16 @@ def targets_from_versions(targets: Targets, versions: dict) -> Targets:
     version_target_error = Target(versions['ERROR_EL'])
 
     if 'USER_NAME' in targets and version_target_user_name.variable != targets['USER_NAME'].variable:
-        _LOGGER.warning(f'USER_NAME target is forced to "{targets["USER_NAME"].variable}", contrary to the element found on the website: "{version_target_user_name}"')
+        _LOGGER.warning(
+            f'USER_NAME target is forced to "{targets["USER_NAME"].variable}", '
+            f'contrary to the element found on the website: "{version_target_user_name}"')
     else:
         targets['USER_NAME'] = version_target_user_name
 
     if "ERROR" in targets and version_target_error.variable != targets['ERROR'].variable:
-        _LOGGER.warning(f'ERROR target is forced to "{targets["ERROR"].variable}", contrary to the element found on the website: "{version_target_error}"')
+        _LOGGER.warning(
+            f'ERROR target is forced to "{targets["ERROR"].variable}", '
+            f'contrary to the element found on the website: "{version_target_error}"')
     else:
         targets['ERROR'] = version_target_error
 
@@ -105,35 +94,96 @@ def create_targets(cnf: Config) -> Targets:
     return targets
 
 
-def identify_target(trigger: WebElement, targets: Targets) -> Optional[Target]:
+def find_element(target: Target, driver) -> Locator:
+    """Return a Playwright Locator for the target."""
+    return target.locator(driver.page)
+
+
+def identify_target(element_info: dict, targets: Targets) -> Optional[Target]:
+    """Identify which target matches the element info dict."""
     for target in targets.values():
         try:
-            if target.identify(trigger):
+            if target.identify(element_info):
                 return target
-        except TypeError as e:
-            # this is raised if trigger doesn't have Target's attribute, we can ignore it
-            if "argument of type 'NoneType' is not iterable" in str(e):
+        except TypeError:
+            continue
+
+    raise RuntimeError(f'Trigger found but cannot be identified: {element_info}')
+
+
+def wait_for_any(page: Page, targets_list: list, timeout: int) -> (dict, Target, Locator):
+    """Wait for any of the given (target, condition) pairs to match.
+
+    Each item in targets_list is a tuple of (target, condition_type) where condition_type
+    is one of: 'visible', 'clickable', 'has_text', 'present'.
+
+    Returns: (element_info dict, matched Target, Locator)
+    """
+    # Build a combined selector that matches any of our targets
+    # We'll poll until one matches
+    import time
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        for target, condition in targets_list:
+            try:
+                loc = target.locator(page)
+                if condition == 'has_text':
+                    # For text targets (TAG_NAME@@text), check text content
+                    for tag in ['pre', 'body']:
+                        try:
+                            tag_loc = page.locator(tag)
+                            if tag_loc.count() > 0:
+                                text = tag_loc.first.inner_text(timeout=500)
+                                if target.identifier in text:
+                                    info = {'text': text, 'tag': tag}
+                                    return info, target, tag_loc.first
+                        except Exception:
+                            continue
+                elif condition == 'visible':
+                    if loc.count() > 0 and loc.first.is_visible():
+                        info = _get_element_info(loc.first)
+                        return info, target, loc.first
+                elif condition == 'clickable':
+                    if loc.count() > 0 and loc.first.is_visible() and loc.first.is_enabled():
+                        info = _get_element_info(loc.first)
+                        return info, target, loc.first
+                elif condition == 'present':
+                    if loc.count() > 0:
+                        info = _get_element_info(loc.first)
+                        return info, target, loc.first
+            except Exception:
                 continue
-            raise
+        time.sleep(0.3)
 
-    raise RuntimeError(f'Trigger found but cannot be identified: {trigger} :: {trigger.get_attribute("outerHTML")}')
-
-
-def is_present(target: Target) -> callable:
-    return EC.presence_of_element_located((target.by, target.identifier))
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+    raise PlaywrightTimeoutError(f'Timeout waiting for any of {[t[0] for t in targets_list]}')
 
 
-def is_visible(target: Target) -> callable:
-    return EC.visibility_of_element_located((target.by, target.identifier))
+def wait_for_target(page: Page, target: Target, condition: str, timeout: int) -> Locator:
+    """Wait for a single target with a condition. Returns the Locator."""
+    info, matched, loc = wait_for_any(page, [(target, condition)], timeout)
+    return loc
 
 
-def is_clickable(target: Target) -> callable:
-    return EC.element_to_be_clickable((target.by, target.identifier))
+def _get_element_info(locator: Locator) -> dict:
+    """Extract element attributes for identification."""
+    try:
+        return {
+            'id': locator.get_attribute('id') or '',
+            'class': locator.get_attribute('class') or '',
+            'name': locator.get_attribute('name') or '',
+            'for': locator.get_attribute('for') or '',
+            'text': locator.inner_text(timeout=1000) if _is_text_element(locator) else '',
+            'tag': locator.evaluate('el => el.tagName.toLowerCase()'),
+        }
+    except Exception:
+        return {}
 
 
-def has_text(target: Target) -> callable:
-    return text_to_be_present_in_element(target.by, target.identifier)
-
-
-def find_element(target: Target, driver: webdriver.Chrome) -> WebElement:
-    return driver.find_element(target.by, target.identifier)
+def _is_text_element(locator: Locator) -> bool:
+    try:
+        tag = locator.evaluate('el => el.tagName.toLowerCase()')
+        return tag in ('pre', 'body', 'span', 'div', 'p', 'label')
+    except Exception:
+        return False

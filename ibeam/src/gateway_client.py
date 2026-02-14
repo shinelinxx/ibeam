@@ -127,14 +127,15 @@ class GatewayClient():
                 _LOGGER.warning(f'Validation result is False when IBeam attempted to extend the SSO token. This could indicate token authentication issues.')
 
     def shutdown(self):
-        self._health_server.shutdown()
+        if hasattr(self, '_health_server') and self._health_server:
+            self._health_server.shutdown()
 
     def __getstate__(self):
         state = self.__dict__.copy()
 
         # APS schedulers and health_server can't be pickled
-        del state['_scheduler']
-        del state['_health_server']
+        state.pop('_scheduler', None)
+        state.pop('_health_server', None)
         return state
 
     def __setstate__(self, state):

@@ -1,0 +1,11 @@
+services:
+  ibeam:
+    build: .
+    container_name: ibeam
+    env_file:
+      - ibeam.env
+    ports:
+      - 127.0.0.1:5000:5000 # IB Gateway Web API 端口
+      - 127.0.0.1:5001:5001 # IBeam 自己起的一个轻量 HTTP 服务，用于容器编排时判断服务是否就绪。
+    network_mode: bridge    # clientportal.gw 要求
+    restart: 'no'           # 防止超过 IBEAM_MAX_FAILED_AUTH 次数
