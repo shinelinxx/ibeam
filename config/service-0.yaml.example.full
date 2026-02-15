@@ -1,6 +1,12 @@
 # IBeam 配置文件（完整版）
 # 简单版见 service-0.yaml.example
 # 复制本文件为 service-0.yaml 并填入你的凭据
+#
+# 当集成到其他项目时，所有配置可放在 'ibeam' 顶层节点下：
+#   ibeam:
+#     ibAcct:
+#       username: ...
+# 独立部署 ibeam 时可直接使用不带前缀的格式（如本文件所示）。
 
 ### IBKR 账户凭据 ###
 ibAcct:
@@ -22,7 +28,7 @@ twoFa:
   totpSecret: 你的Base32密钥
   # totpDigits: 6          # TOTP 位数（默认 6）
   # totpPeriod: 30         # TOTP 刷新间隔秒数（默认 30）
-  # selectTarget: Mobile Authenticator App  # 多个 2FA 设备时选择的设备名称
+  # selectTarget:          # 2FA 设备选择（TOTP 默认 "Mobile Authenticator App"，其他默认 "IB Key"）
 
 ### 网关配置 ###
 # gateway:
@@ -41,6 +47,7 @@ twoFa:
 #   maintenanceInterval: 60  # 维护检查间隔（秒）
 #   healthServerPort: 5001   # 健康检查服务端口
 #   requestTimeout: 15       # 请求超时时间（秒）
+#   startActive: true        # 启动时是否自动认证（false 为手动模式）
 
 ### 日志配置 ###
 # logging:
