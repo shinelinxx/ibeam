@@ -183,7 +183,14 @@ STRICT_TWO_FA_CODE = to_bool(os.environ.get('IBEAM_STRICT_TWO_FA_CODE', True))
 TWO_FA_SELECT_EL_ID = os.environ.get('IBEAM_TWO_FA_SELECT_EL_ID', 'CSS_SELECTOR@@select:visible')
 """HTML element check for if Gateway requires to select the 2FA method."""
 
-TWO_FA_SELECT_TARGET = os.environ.get('IBEAM_TWO_FA_SELECT_TARGET', 'Mobile Authenticator App')
+_TWO_FA_SELECT_TARGET_RAW = os.environ.get('IBEAM_TWO_FA_SELECT_TARGET', None)
+# Auto-select based on handler: TOTP → "Mobile Authenticator App", others → "IB Key"
+if _TWO_FA_SELECT_TARGET_RAW:
+    TWO_FA_SELECT_TARGET = _TWO_FA_SELECT_TARGET_RAW
+elif TWO_FA_HANDLER == 'TOTP':
+    TWO_FA_SELECT_TARGET = 'Mobile Authenticator App'
+else:
+    TWO_FA_SELECT_TARGET = 'IB Key'
 """Option label to choose in the 2FA select dropdown."""
 
 CUSTOM_TWO_FA_HANDLER = os.environ.get('IBEAM_CUSTOM_TWO_FA_HANDLER', 'custom_two_fa_handler.CustomTwoFaHandler')

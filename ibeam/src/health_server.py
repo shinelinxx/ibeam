@@ -1,3 +1,4 @@
+import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -7,19 +8,25 @@ _LOGGER = logging.getLogger('ibeam.' + Path(__file__).stem)
 
 
 def new_health_server(port: int, check_status, get_shutdown_status,
-                      activate_callback:callable,
-                      deactivate_callback:callable):
+                      activate_callback: callable,
+                      deactivate_callback: callable,
+                      authenticate_callback: callable,
+                      get_status_json: callable):
     class HealthzHandler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/livez":
+            if self.path == '/livez':
                 return self._live()
-            elif self.path == "/readyz":
+            elif self.path == '/readyz':
                 return self._ready()
-            elif self.path == "/activate":
+            elif self.path == '/activate':
                 return self._activate()
-            elif self.path == "/deactivate":
+            elif self.path == '/deactivate':
                 return self._deactivate()
-            self.send_error(404, "Not Found")
+            elif self.path == '/authenticate':
+                return self._authenticate()
+            elif self.path == '/status':
+                return self._status()
+            self.send_error(404, 'Not Found')
 
         def _live(self):
             if get_shutdown_status():
@@ -45,23 +52,44 @@ def new_health_server(port: int, check_status, get_shutdown_status,
             else:
                 return self._send_500()
 
+        def _authenticate(self):
+            result = authenticate_callback()
+            self._send_json(200 if result.get('success') else 500, result)
+
+        def _status(self):
+            result = get_status_json()
+            self._send_json(200, result)
+
         def _send_ok(self):
             self.send_response(200)
-            self.send_header("Content-type", "text/html")
+            self.send_header('Content-type', 'text/html')
             self.end_headers()
-            self.wfile.write("OK".encode())
+            self.wfile.write('OK'.encode())
 
         def _send_500(self):
             self.send_response(500)
-            self.send_header("Content-type", "text/html")
+            self.send_header('Content-type', 'text/html')
             self.end_headers()
-            self.wfile.write("Internal Error".encode())
+            self.wfile.write('Internal Error'.encode())
 
         def _not_ready(self):
             self.send_response(503)
-            self.send_header("Content-type", "text/html")
+            self.send_header('Content-type', 'text/html')
             self.end_headers()
-            self.wfile.write("Not Ready".encode())
+            self.wfile.write('Not Ready'.encode())
+
+        def _send_json(self, code, data):
+            self.send_response(code)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+
+        def log_message(self, format, *args):
+            # Suppress default request logging for /livez and /readyz
+            if len(args) > 0 and isinstance(args[0], str):
+                if '/livez' in args[0] or '/readyz' in args[0]:
+                    return
+            _LOGGER.debug(format % args)
 
     server = HTTPServer(('', port), HealthzHandler)
     t = threading.Thread(target=server.serve_forever, daemon=True)

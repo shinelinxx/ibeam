@@ -8,4 +8,3 @@ ibAcct:
 twoFa:
   handler: TOTP
   totpSecret: 你的Base32密钥
-  selectTarget: Mobile Authenticator App

@@ -41,18 +41,50 @@ class GatewayClient():
         self.request_retries = request_retries
 
         self._concurrent_maintenance_attempts = 1
+        self._authenticating = False
         self._health_server = new_health_server(
             self.health_server_port,
             self.http_handler.get_status,
             self.get_shutdown_status,
             self.on_activate,
             self.on_deactivate,
+            self.on_authenticate,
+            self.get_status_json,
         )
 
         self._active = active
 
     def get_shutdown_status(self) -> bool:
         return self._should_shutdown
+
+    def get_status_json(self) -> dict:
+        """Return current ibeam status as a JSON-serializable dict."""
+        try:
+            status = self.http_handler.get_status()
+            return {
+                'active': self._active,
+                'authenticating': self._authenticating,
+                'shutdown': self._should_shutdown,
+                'authenticated': status.authenticated if status else False,
+                'connected': status.connected if status else False,
+                'competing': status.competing if status else False,
+                'session': status.session if status else False,
+                'serverName': status.server_name if status else None,
+                'sessionId': status.session_id if status else None,
+            }
+        except Exception as e:
+            _LOGGER.debug(f'get_status_json error: {e}')
+            return {
+                'active': self._active,
+                'authenticating': self._authenticating,
+                'shutdown': self._should_shutdown,
+                'authenticated': False,
+                'connected': False,
+                'competing': False,
+                'session': False,
+                'serverName': None,
+                'sessionId': None,
+            }
 
     def start_and_authenticate(self, request_retries=1) -> (bool, bool, Status):
         """Starts the gateway and authenticates using the credentials stored."""
@@ -62,6 +94,55 @@ class GatewayClient():
         success, shutdown, status = self.strategy_handler.try_authenticating(request_retries=request_retries)
         self._should_shutdown = shutdown
         return success, shutdown, status
+
+    def on_authenticate(self) -> dict:
+        """Manually trigger authentication. Activates if dormant, then authenticates immediately.
+
+        Unlike maintenance-triggered auth, manual auth:
+        - Does NOT propagate shutdown (wrong password shouldn't kill ibeam)
+        - Resets the failed-auth counter so user can retry after fixing credentials
+        - Resets shutdown state if previously shut down
+        """
+        _LOGGER.info('Manual authentication triggered')
+
+        if self._authenticating:
+            _LOGGER.info('Authentication already in progress, skipping')
+            return {'success': False, 'message': 'Authentication already in progress'}
+
+        if not self._active:
+            _LOGGER.info('Activating before manual authentication')
+            self._active = True
+
+        # Reset shutdown state so manual auth can recover from previous failures
+        if self._should_shutdown:
+            _LOGGER.info('Resetting shutdown state for manual authentication')
+            self._should_shutdown = False
+
+        # Reset the login_handler's failed attempt counter
+        self.strategy_handler.login_handler.failed_attempts = 0
+
+        self._authenticating = True
+        try:
+            success, shutdown, status = self.start_and_authenticate(request_retries=self.request_retries)
+
+            if shutdown:
+                # Don't propagate shutdown from manual auth — just report the error
+                self._should_shutdown = False
+                _LOGGER.warning('Manual authentication hit max failed attempts, but shutdown is suppressed for manual mode')
+                # Reset counter again so next manual attempt is possible
+                self.strategy_handler.login_handler.failed_attempts = 0
+                return {'success': False, 'message': 'Authentication failed: invalid credentials or max attempts reached'}
+            elif success:
+                _LOGGER.info(f'Manual authentication successful, session id: {status.session_id}')
+                self.http_handler.validate()
+                return {'success': True, 'message': 'Authenticated successfully'}
+            else:
+                return {'success': False, 'message': 'Authentication failed'}
+        except Exception as e:
+            _LOGGER.error(f'Manual authentication error: {e}')
+            return {'success': False, 'message': str(e)}
+        finally:
+            self._authenticating = False
 
     def on_activate(self) -> bool:
         if self._active:
@@ -110,9 +191,17 @@ class GatewayClient():
             _LOGGER.info('Maintenance skipped, GatewayClient is not active.')
             return
 
+        if self._authenticating:
+            _LOGGER.info('Maintenance skipped, authentication in progress.')
+            return
+
         _LOGGER.info('Maintenance')
 
-        success, shutdown, status = self.start_and_authenticate(request_retries=self.request_retries)
+        self._authenticating = True
+        try:
+            success, shutdown, status = self.start_and_authenticate(request_retries=self.request_retries)
+        finally:
+            self._authenticating = False
 
         if shutdown:
             _LOGGER.warning('Shutting IBeam down due to critical error.')

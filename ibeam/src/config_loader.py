@@ -1,20 +1,24 @@
 """Load YAML config and inject values into os.environ as IBEAM_* variables.
 
 The YAML structure uses nested keys that map to flat IBEAM_ environment variables.
-For example:
+Supports two formats:
 
+1. Standalone (ibeam 独立部署):
     ibAcct:
       username: myuser
-      password: mypass
     twoFa:
       handler: TOTP
-      totpSecret: XXXX
 
-Maps to:
+2. Integrated (集成到其他项目，带 ibeam 前缀):
+    ibeam:
+      ibAcct:
+        username: myuser
+      twoFa:
+        handler: TOTP
+
+Both map to:
     IBEAM_ACCOUNT=myuser
-    IBEAM_PASSWORD=mypass
     IBEAM_TWO_FA_HANDLER=TOTP
-    IBEAM_TOTP_SECRET=XXXX
 """
 
 import logging
@@ -24,13 +28,18 @@ from typing import Optional
 
 _LOGGER = logging.getLogger('ibeam.' + Path(__file__).stem)
 
-# Mapping from YAML dot-paths to IBEAM_ env var names.
+# Base mapping from YAML dot-paths to IBEAM_ env var names.
 # Only keys listed here are recognized.
-_YAML_TO_ENV = {
+_BASE_YAML_TO_ENV = {
     # ibAcct
     'ibAcct.username': 'IBEAM_ACCOUNT',
     'ibAcct.password': 'IBEAM_PASSWORD',
     'ibAcct.key': 'IBEAM_KEY',
+
+    # ibgw_account (legacy alias for ibAcct)
+    'ibgw_account.username': 'IBEAM_ACCOUNT',
+    'ibgw_account.password': 'IBEAM_PASSWORD',
+    'ibgw_account.key': 'IBEAM_KEY',
 
     # twoFa
     'twoFa.handler': 'IBEAM_TWO_FA_HANDLER',
@@ -108,6 +117,14 @@ _YAML_TO_ENV = {
     'elements.ibkeyPromo': 'IBEAM_IBKEY_PROMO_EL_CLASS',
 }
 
+# Build the full mapping: accept both bare paths and 'ibeam.' prefixed paths.
+# The 'ibeam.' prefix is used when ibeam config is nested under an 'ibeam' section
+# in a shared config file when integrated with other projects.
+_YAML_TO_ENV = {}
+for _path, _env in _BASE_YAML_TO_ENV.items():
+    _YAML_TO_ENV[_path] = _env                # bare: ibAcct.username
+    _YAML_TO_ENV[f'ibeam.{_path}'] = _env     # prefixed: ibeam.ibAcct.username
+
 
 def _flatten(d: dict, parent_key: str = '') -> dict:
     """Flatten a nested dict with dot-separated keys."""
@@ -139,7 +156,7 @@ def load_yaml_config(config_path: Optional[str] = None) -> int:
         return 0
 
     if config_path is None:
-        # Support CONFIG_FILE env var (like ibkr-trader)
+        # Support CONFIG_FILE env var
         config_path = os.environ.get('CONFIG_FILE')
 
     if config_path is None:
