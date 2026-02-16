@@ -45,6 +45,11 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    # Automatically reap zombie child processes (e.g. Playwright's chromium).
+    # When running as PID 1 inside a container, Python does not call wait()
+    # on terminated children, causing zombie accumulation.
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
     cnf = Config(var.all_variables)
 
     from ibeam.src import logs

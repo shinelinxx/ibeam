@@ -1,7 +1,8 @@
 services:
   ibeam:
-    image: shinelin/ibeam:v0.1.1
+    image: shinelin/ibeam:v0.1.3
     container_name: ibeam
+    init: true
     volumes:
       - ./config/service-${TRADER_INDEX:-0}.yaml:/srv/ibeam/config.yaml:ro
     ports:
